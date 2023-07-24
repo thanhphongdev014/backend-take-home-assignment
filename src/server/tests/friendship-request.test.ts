@@ -368,4 +368,88 @@ describe.concurrent('Friendship request', async () => {
     ]
     )
   })
+
+  test('Question 5 / Scenario 2', async ({ expect }) => {
+    const [userA, userB, userC, userD, userE] = await Promise.all([
+      createUser(),
+      createUser(),
+      createUser(),
+      createUser(),
+      createUser(),
+    ])
+
+    await Promise.all([
+      userB.sendFriendshipRequest({
+        friendUserId: userA.id,
+      }),
+      userC.sendFriendshipRequest({
+        friendUserId: userA.id,
+      }),
+      userD.sendFriendshipRequest({
+        friendUserId: userA.id,
+      }),
+      userE.sendFriendshipRequest({
+        friendUserId: userA.id,
+      }),
+      userC.sendFriendshipRequest({
+        friendUserId: userB.id,
+      }),
+      userC.sendFriendshipRequest({
+        friendUserId: userD.id,
+      }),
+      userD.sendFriendshipRequest({
+        friendUserId: userE.id,
+      }),
+    ])
+
+    await Promise.all([
+      userA.acceptFriendshipRequest({
+        friendUserId: userB.id,
+      }),
+      userA.acceptFriendshipRequest({
+        friendUserId: userC.id,
+      }),
+      userA.acceptFriendshipRequest({
+        friendUserId: userD.id,
+      }),
+      userA.acceptFriendshipRequest({
+        friendUserId: userE.id,
+      }),
+      userB.acceptFriendshipRequest({
+        friendUserId: userC.id,
+      }),
+      userD.acceptFriendshipRequest({
+        friendUserId: userC.id,
+      }),
+      userE.acceptFriendshipRequest({
+        friendUserId: userD.id,
+      }),
+    ])
+
+    await expect(
+      userA.getAll()
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: userB.id,
+        totalFriendCount : 2,
+        mutualFriendCount: 1,
+      }),
+      expect.objectContaining({
+        id: userC.id,
+        totalFriendCount : 3,
+        mutualFriendCount: 2,
+      }),
+      expect.objectContaining({
+        id: userD.id,
+        totalFriendCount : 3,
+        mutualFriendCount: 2,
+      }),
+      expect.objectContaining({
+        id: userE.id,
+        totalFriendCount : 2,
+        mutualFriendCount: 1,
+      }),
+    ]
+    )
+  })
 })
