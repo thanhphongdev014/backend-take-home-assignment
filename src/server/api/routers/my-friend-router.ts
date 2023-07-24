@@ -49,9 +49,10 @@ export const myFriendRouter = router({
             'friends.id'
           )
           .leftJoin(
-            userMutualFriendCount(conn, ctx.session.userId, input.friendUserId).as('userMutualFriendCount'),
+            userMutualFriendCount(conn).as('userMutualFriendCount'),
             (join) => join
               .onRef('friends.id', '=', 'userMutualFriendCount.friendId')
+              .onRef('friendships.userId', '=', 'userMutualFriendCount.userId')
           ) // add mutual friend count
           .where('friendships.userId', '=', ctx.session.userId)
           .where('friendships.friendUserId', '=', input.friendUserId)
@@ -79,6 +80,52 @@ export const myFriendRouter = router({
           )
       )
     }),
+
+    getAll: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      return ctx.db.connection().execute(async (conn) =>
+        /**
+         * Question 5: Get all friend
+         */
+        conn
+          .selectFrom('users as friends')
+          .innerJoin('friendships', 'friendships.friendUserId', 'friends.id')
+          .innerJoin(
+            userTotalFriendCount(conn).as('userTotalFriendCount'),
+            'userTotalFriendCount.userId',
+            'friends.id'
+          )
+          .leftJoin(
+            userMutualFriendCount(conn).as('userMutualFriendCount'),
+            (join) => join
+              .onRef('friends.id', '=', 'userMutualFriendCount.friendId')
+              .onRef('friendships.userId', '=', 'userMutualFriendCount.userId')
+          ) 
+          .where('friendships.userId', '=', ctx.session.userId)
+          .where(
+            'friendships.status',
+            '=',
+            FriendshipStatusSchema.Values['accepted']
+          )
+          .select([
+            'friends.id',
+            'friends.fullName',
+            'friends.phoneNumber',
+            'totalFriendCount',
+            'mutualFriendCount' 
+          ])
+          .execute()
+          .then(
+            z.array(z.object({
+              id: IdSchema,
+              fullName: NonEmptyStringSchema,
+              phoneNumber: NonEmptyStringSchema,
+              totalFriendCount: CountSchema,
+              mutualFriendCount: CountSchema,
+            })).parse
+          )
+      )
+    })
 })
 
 const userTotalFriendCount = (db: Database) => {
@@ -92,22 +139,20 @@ const userTotalFriendCount = (db: Database) => {
     .groupBy('friendships.userId')
 }
 
-const userMutualFriendCount = (db: Database, userId: number, friendId: number) => {
+const userMutualFriendCount = (db: Database) => {
   return db
-    .selectFrom('friendships as f1')
-    .where('f1.status', '=', FriendshipStatusSchema.Values['accepted'])
-    .where('f1.userId', '=', userId)
+    .selectFrom('friendships as f1')  
     .innerJoin(
       'friendships as f2',
       (join) => join
         .onRef('f1.friendUserId', '=', 'f2.friendUserId')
-        .on('f2.userId', '=', friendId)
         .on('f2.status' , '=', FriendshipStatusSchema.Values['accepted'])
     )
+    .where('f1.status', '=', FriendshipStatusSchema.Values['accepted'])
     .select((eb) => [
       'f1.userId',
       'f2.userId as friendId',
-      eb.fn.countAll().as('mutualFriendCount'),
+      eb.fn.count('f1.friendUserId').as('mutualFriendCount'),
     ])    
     .groupBy(['f1.userId','friendId'])
 }
